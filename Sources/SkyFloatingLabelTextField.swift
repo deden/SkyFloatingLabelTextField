@@ -74,17 +74,21 @@ open class SkyFloatingLabelTextField: UITextField { // swiftlint:disable:this ty
     }
 
     fileprivate func updatePlaceholder() {
-        guard let placeholder = placeholder, let font = placeholderFont ?? font else {
+        guard let placeholder = titleOrPlaceholder(), let font = placeholderFont else {
             return
         }
         let color = isEnabled ? placeholderColor : disabledColor
         #if swift(>=4.2)
-            attributedPlaceholder = NSAttributedString(
+            let newAttributedPlaceholder = NSMutableAttributedString(
                 string: placeholder,
-                attributes: [
-                    NSAttributedString.Key.foregroundColor: color, NSAttributedString.Key.font: font
+                attributes: [NSAttributedString.Key.foregroundColor: color, NSAttributedString.Key.font: font
                 ]
             )
+            let nsRange = NSString(string: placeholder).range(of: "*", options: String.CompareOptions.caseInsensitive)
+            if nsRange.location != NSNotFound {
+                newAttributedPlaceholder.addAttribute(NSAttributedString.Key.foregroundColor, value: UIColor.red , range: nsRange)
+            }
+            attributedPlaceholder = newAttributedPlaceholder
         #elseif swift(>=4.0)
             attributedPlaceholder = NSAttributedString(
                 string: placeholder,
@@ -209,6 +213,14 @@ open class SkyFloatingLabelTextField: UITextField { // swiftlint:disable:this ty
             return text.localizedUppercase
         } else {
             return text.uppercased()
+        }
+    }
+    
+    open var isRequired: Bool = false {
+        didSet {
+            setNeedsDisplay()
+            updatePlaceholder()
+            updateTitleLabel()
         }
     }
 
@@ -449,6 +461,25 @@ open class SkyFloatingLabelTextField: UITextField { // swiftlint:disable:this ty
             lineView.backgroundColor = editingOrSelected ? selectedLineColor : lineColor
         }
     }
+    
+    fileprivate func updateTitleLabelAttributedText() {
+        guard let placeholder = titleOrPlaceholder(), let font = titleFont ?? font else {
+            return
+        }
+        
+        let color = editingOrSelected || isHighlighted ? selectedTitleColor : titleColor
+        let newAttributedPlaceholder = NSMutableAttributedString(
+            string: placeholder,
+            attributes: [
+                NSAttributedString.Key.foregroundColor: color, NSAttributedString.Key.font: font,
+            ]
+        )
+        let nsRange = NSString(string: placeholder).range(of: "*", options: String.CompareOptions.caseInsensitive)
+        if nsRange.location != NSNotFound {
+            newAttributedPlaceholder.addAttribute(NSAttributedString.Key.foregroundColor, value: UIColor.red , range: nsRange)
+        }
+        titleLabel.attributedText = newAttributedPlaceholder
+    }
 
     fileprivate func updateTitleColor() {
         guard let titleLabel = titleLabel else {
@@ -460,6 +491,10 @@ open class SkyFloatingLabelTextField: UITextField { // swiftlint:disable:this ty
         } else if hasErrorMessage {
             titleLabel.textColor = titleErrorColor ?? errorColor
         } else {
+            guard isRequired == false else {
+                return updateTitleLabelAttributedText()
+            }
+            
             if editingOrSelected || isHighlighted {
                 titleLabel.textColor = selectedTitleColor
             } else {
@@ -498,8 +533,12 @@ open class SkyFloatingLabelTextField: UITextField { // swiftlint:disable:this ty
                 titleText = titleOrPlaceholder()
             }
         }
-        titleLabel.text = titleText
-        titleLabel.font = titleFont
+        if isRequired, !hasErrorMessage {
+            updateTitleLabelAttributedText()
+        } else {
+            titleLabel.text = titleText
+            titleLabel.font = titleFont
+        }
 
         updateTitleVisibility(animated)
     }
@@ -696,13 +735,13 @@ open class SkyFloatingLabelTextField: UITextField { // swiftlint:disable:this ty
         guard let title = title ?? placeholder else {
             return nil
         }
-        return titleFormatter(title)
+        return titleFormatter(isRequired ? "\(title) *" : title)
     }
 
     fileprivate func selectedTitleOrTitlePlaceholder() -> String? {
         guard let title = selectedTitle ?? title ?? placeholder else {
             return nil
         }
-        return titleFormatter(title)
+        return titleFormatter(isRequired ? "\(title) *" : title)
     }
 } // swiftlint:disable:this file_length
